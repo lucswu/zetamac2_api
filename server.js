@@ -117,10 +117,13 @@ app.post("/api/join-room", async (req, res) => {
   }
 });
 
-app.get("/api/get-info", async (req, res) => {
+app.post("/api/get-info", async (req, res) => {
   try {
     const { roomName } = req.body;
-    const room = await Room.findOne({ roomName });
+    const room = await Room.findOne(
+      { roomName },
+      { ownerName: 1, roomId: 1, inGame: 1, players: 1 }
+    ).lean();
 
     if (!room) {
       res.status(404).json({
@@ -130,14 +133,7 @@ app.get("/api/get-info", async (req, res) => {
       return;
     }
     // Return room info
-    res.json({
-      success: true,
-      roomName: room.roomName,
-      roomId: room.roomId,
-      ownerName: room.ownerName,
-      inGame: room.inGame,
-      players: room.players,
-    });
+    res.json(room);
   } catch (error) {
     console.error("Error getting room info:", error);
     res.status(500).json({
@@ -153,7 +149,8 @@ app.post("/api/update-score", async (req, res) => {
 
     const room = await Room.findOneAndUpdate(
       { roomName: roomName, "players.playerName": playerName },
-      { $set: { "players.$.playerScore": score } }
+      { $set: { "players.$.playerScore": score } },
+      { returnOriginal: false }
     );
     if (!room) {
       res.status(404).json({
@@ -162,6 +159,8 @@ app.post("/api/update-score", async (req, res) => {
       });
       return;
     }
+    console.log(req.body);
+    console.log(room);
   } catch (error) {
     console.error("Error updating score:", error);
     res.status(500).json({
@@ -176,7 +175,7 @@ app.post("/api/end-game", async (req, res) => {
     const { roomName } = req.body;
     const room = await Room.findOneAndUpdate(
       { roomName },
-      { $set: { inGame: false } }
+      { $set: { inGame: false, "players.$[].playerScore": 0 } }
       // (err, result) => {
       //   if (err) {
       //     console.error("Error updating inGame:", error);
