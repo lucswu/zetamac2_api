@@ -34,10 +34,17 @@ app.use(function (req, res, next) {
 
 // Database Setup (Example: Using MongoDB with Mongoose)
 const mongoose = require("mongoose");
-mongoose.connect("mongodb://localhost/room_data", {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
+mongoose.connect(
+  "mongodb+srv://lucaswu:lucaswu-password@cluster0.9s3uode.mongodb.net/zetamac2?retryWrites=true&w=majority",
+  {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  }
+);
+mongoose.connection.on("connected", () => {
+  console.log("Successfully connected to MongoDB Atlas!");
 });
+
 const Room = mongoose.model("rooms", {
   roomName: String,
   roomId: String,
@@ -55,22 +62,33 @@ const Room = mongoose.model("rooms", {
 app.post("/api/create-room", async (req, res) => {
   try {
     const { roomName, password, playerName } = req.body;
-    const room = new Room({
+
+    const room = await Room.findOne({ roomName });
+
+    if (room) {
+      res.status(404).json({
+        success: false,
+        message: "Room already exists.",
+      });
+      return;
+    }
+
+    const newroom = new Room({
       roomName: roomName,
       roomId: UUID(0).uuid(),
       ownerName: playerName,
       inGame: false,
       players: [{ playerName: playerName, playerScore: 0 }],
     });
-    await room.save();
+    await newroom.save();
 
     res.json({
       success: true,
       message: "Room created successfully",
-      roomName: room.roomName,
-      roomId: room.roomId,
-      playerName: room.playerName,
-      url: `/game-room?roomName=${room.roomName}&playerName=${req.body.playerName}`,
+      roomName: newroom.roomName,
+      roomId: newroom.roomId,
+      playerName: newroom.playerName,
+      url: `/game-room?roomName=${newroom.roomName}&playerName=${req.body.playerName}`,
     });
   } catch (error) {
     console.error("Error creating room:", error);
@@ -170,12 +188,12 @@ app.post("/api/update-score", async (req, res) => {
   }
 });
 
-app.post("/api/end-game", async (req, res) => {
+app.post("/api/new-game", async (req, res) => {
   try {
     const { roomName } = req.body;
     const room = await Room.findOneAndUpdate(
       { roomName },
-      { $set: { inGame: false, "players.$[].playerScore": 0 } }
+      { $set: { inGame: true, "players.$[].playerScore": 0 } }
       // (err, result) => {
       //   if (err) {
       //     console.error("Error updating inGame:", error);
